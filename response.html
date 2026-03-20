@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦀 localhost | Tony Ngugi's Rust Server</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0f0f1a 100%);
+        font-family: 'Segoe UI', 'Fira Code', 'Cascadia Code', monospace;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        overflow-x: hidden;
+      }
+
+      /* Animated background particles */
+      body::before {
+        content: '';
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background-image: 
+          radial-gradient(circle at 20% 80%, rgba(255, 107, 107, 0.15) 0%, transparent 50%),
+          radial-gradient(circle at 80% 20%, rgba(78, 205, 196, 0.15) 0%, transparent 50%),
+          repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 2px, transparent 2px, transparent 8px);
+        pointer-events: none;
+        animation: float 20s ease-in-out infinite;
+      }
+
+      @keyframes float {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        33% { transform: translate(2%, 1%) rotate(1deg); }
+        66% { transform: translate(-1%, 2%) rotate(-1deg); }
+      }
+
+      .container {
+        position: relative;
+        z-index: 10;
+        background: rgba(10, 10, 20, 0.85);
+        backdrop-filter: blur(10px);
+        border-radius: 32px;
+        padding: 3rem 4rem;
+        box-shadow: 
+          0 20px 40px rgba(0, 0, 0, 0.5),
+          0 0 0 1px rgba(255, 255, 255, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        transform: translateY(0);
+        animation: slideUp 0.6s ease-out;
+        text-align: center;
+        max-width: 700px;
+        margin: 20px;
+        border: 1px solid rgba(255, 107, 107, 0.3);
+      }
+
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .rust-icon {
+        font-size: 4rem;
+        display: inline-block;
+        animation: spin 8s linear infinite;
+        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      h1 {
+        font-size: 3rem;
+        background: linear-gradient(135deg, #f64e4e 0%, #f7b42c 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        margin: 0.5rem 0;
+        font-weight: 800;
+        letter-spacing: -1px;
+        animation: gradientShift 3s ease infinite;
+        background-size: 200% 200%;
+      }
+
+      @keyframes gradientShift {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+      }
+
+      .owner-badge {
+        background: linear-gradient(135deg, #f64e4e 0%, #d43f3f 100%);
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0.6rem 1.5rem;
+        border-radius: 60px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 15px rgba(246, 78, 78, 0.3);
+        transition: all 0.3s ease;
+      }
+
+      .owner-badge:hover {
+        transform: scale(1.05);
+        box-shadow: 0 6px 20px rgba(246, 78, 78, 0.5);
+      }
+
+      .subtitle {
+        font-size: 1rem;
+        color: #a0a0c0;
+        margin-bottom: 1.5rem;
+        font-family: monospace;
+      }
+
+      .localhost-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 0.5rem 1rem;
+        border-radius: 40px;
+        width: fit-content;
+        margin: 0 auto 1rem auto;
+        border: 1px solid rgba(255, 107, 107, 0.3);
+      }
+
+      .localhost-header span {
+        color: #4ec9b0;
+        font-family: monospace;
+        font-weight: bold;
+        letter-spacing: 1px;
+      }
+
+      .info-panel {
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 20px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        text-align: left;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .info-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.75rem 0;
+        font-family: monospace;
+        font-size: 0.9rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .info-item:last-child {
+        border-bottom: none;
+      }
+
+      .info-label {
+        font-weight: 700;
+        color: #f64e4e;
+      }
+
+      .info-value {
+        color: #4ec9b0;
+      }
+
+      .terminal {
+        background: #0a0a0a;
+        border-radius: 12px;
+        padding: 1.2rem;
+        margin-top: 1.5rem;
+        text-align: left;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.85rem;
+        overflow-x: auto;
+        border-left: 3px solid #f64e4e;
+      }
+
+      .terminal-line {
+        color: #c0c0c0;
+        margin: 0.4rem 0;
+      }
+
+      .terminal-line .prompt {
+        color: #4ec9b0;
+        font-weight: bold;
+      }
+
+      .terminal-line .command {
+        color: #dcdcaa;
+      }
+
+      .terminal-line .output {
+        color: #ce9178;
+      }
+
+      .cursor {
+        display: inline-block;
+        width: 8px;
+        height: 14px;
+        background: #4ec9b0;
+        vertical-align: middle;
+        animation: blink 1s step-end infinite;
+        margin-left: 2px;
+      }
+
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+
+      .tech-stack {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin: 1.5rem 0;
+        flex-wrap: wrap;
+      }
+
+      .tech {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(5px);
+        padding: 0.4rem 1rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #f64e4e;
+        transition: all 0.2s ease;
+        border: 1px solid rgba(255, 107, 107, 0.3);
+      }
+
+      .tech:hover {
+        transform: translateY(-2px);
+        background: rgba(246, 78, 78, 0.2);
+        border-color: #f64e4e;
+      }
+
+      .signature {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.8rem;
+        color: #888;
+        font-family: monospace;
+      }
+
+      .signature a {
+        color: #f64e4e;
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+
+      .signature a:hover {
+        color: #ff8888;
+        text-decoration: underline;
+      }
+
+      @media (max-width: 600px) {
+        .container {
+          padding: 2rem;
+          margin: 15px;
+        }
+        h1 {
+          font-size: 2rem;
+        }
+        .rust-icon {
+          font-size: 3rem;
+        }
+        .owner-badge {
+          font-size: 0.9rem;
+          padding: 0.4rem 1rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="rust-icon">🦀</div>
+      
+      <div class="owner-badge">
+        🔥 Tony Ngugi 🔥
+      </div>
+      
+      <div class="localhost-header">
+        <span>🏠</span>
+        <span>localhost:5000</span>
+        <span>→</span>
+        <span style="color: #f64e4e;">Tony's Realm</span>
+      </div>
+      
+      <h1>Hello from Rust!</h1>
+      <div class="subtitle">
+        ✨ Built by Tony Ngugi • Zero-cost abstractions • Memory safety • Fearless concurrency ✨
+      </div>
+      
+      <div class="info-panel">
+        <div class="info-item">
+          <span class="info-label">👨‍💻 Developer</span>
+          <span class="info-value">Tony Ngugi (localhost)</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">🚀 Server</span>
+          <span class="info-value">Raw Rust TCP Server</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">📡 Protocol</span>
+          <span class="info-value">HTTP/1.1</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">⚙️ Status</span>
+          <span class="info-value">🟢 Online • Ready to serve</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">🔧 Response Time</span>
+          <span class="info-value" id="responseTime">Calculating...</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">🌐 Host</span>
+          <span class="info-value">127.0.0.1:5000</span>
+        </div>
+      </div>
+
+      <div class="tech-stack">
+        <span class="tech">🦀 Rust Lang</span>
+        <span class="tech">🔌 Raw TCP Sockets</span>
+        <span class="tech">⚡ Zero-Copy</span>
+        <span class="tech">🚀 No Dependencies</span>
+        <span class="tech">🏠 localhost</span>
+      </div>
+
+      <div class="terminal">
+        <div class="terminal-line">
+          <span class="prompt">tony@localhost:~$</span> <span class="command">curl http://localhost:5000</span>
+        </div>
+        <div class="terminal-line">
+          <span class="prompt">→</span> <span class="output">HTTP/1.1 200 OK</span>
+        </div>
+        <div class="terminal-line">
+          <span class="prompt">→</span> <span class="output">Server: Tony's Rust Server</span>
+        </div>
+        <div class="terminal-line">
+          <span class="prompt">→</span> <span class="output">Content-Length: <span id="contentLength"></span></span>
+        </div>
+        <div class="terminal-line">
+          <span class="prompt">→</span> 
+          <span class="output">"🦀 Hello from Tony Ngugi's Rust server! Built from scratch with ❤️"</span>
+          <span class="cursor"></span>
+        </div>
+      </div>
+
+      <div class="signature">
+        <span>Made with 🦀 and 🔥 by </span>
+        <a href="#" onclick="return false;">Tony Ngugi</a>
+        <span> • localhost • 2026</span>
+        <br>
+        <span style="font-size: 0.7rem;">"Systems programming, the Rustacean way"</span>
+      </div>
+    </div>
+
+    <script>
+      // Dynamic content length display
+      const contentLength = new TextEncoder().encode(document.documentElement.outerHTML).length;
+      document.getElementById('contentLength').textContent = contentLength;
+      
+      // Simulate response time measurement
+      const startTime = performance.now();
+      window.addEventListener('load', () => {
+        const endTime = performance.now();
+        const responseTime = (endTime - startTime).toFixed(2);
+        document.getElementById('responseTime').textContent = `${responseTime} ms`;
+      });
+      
+      // Console flair for Tony
+      console.log("%c🔥 TONY NGUGI's RUST SERVER 🔥", "color: #f64e4e; font-size: 18px; font-weight: bold;");
+      console.log("%c🦀 Running on localhost:5000", "color: #4ec9b0; font-size: 14px;");
+      console.log("%c👨‍💻 Built from scratch with zero dependencies", "color: #f7b42c; font-size: 12px;");
+      
+      // Add dynamic date
+      const dateElement = document.createElement('div');
+      dateElement.style.marginTop = '10px';
+      dateElement.style.fontSize = '0.7rem';
+      dateElement.style.color = '#666';
+      dateElement.innerHTML = `Session started: ${new Date().toLocaleString()}`;
+      document.querySelector('.signature').appendChild(dateElement);
+    </script>
+  </body>
+</html>
