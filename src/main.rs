@@ -1,32 +1,86 @@
 use std::{
     fs,
     net::{TcpListener, TcpStream},
-    io::{BufReader, prelude::*},   
+    io::{BufReader, prelude::*},
 };
 
-fn main () {
-    let listener = TcpListener::bind("127.0.0.1:5000").unwrap();
-    println!("server listening on port 5000");
+fn main() {
+    let listener = match TcpListener::bind("127.0.0.1:5000") {
+        Ok(listener) => {
+            println!("✅ Server bound to port 5000");
+            listener // Return the listener
+        }
+        Err(error) => {
+            println!("❌ Failed to start server: {}", error);
+            return; 
+        }
+    };
+    
+    println!("👂 Server listening on port 5000");
 
     for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        handle_connection(stream);
+        match stream {
+            Ok(stream) => {
+                handle_connection(stream);
+            }
+            Err(error) => {
+                println!("⚠️  Connection failed: {}", error);
+            }
+        }
     }
-
 }
 
 fn handle_connection(mut stream: TcpStream) {
     let buf_reader = BufReader::new(&stream);
-    let http_request: Vec<_> = buf_reader
-        .lines()
-        .map(|result| result.unwrap())
-        .take_while(|line| !line.is_empty())
-        .collect();
-    let status_line = "HTTP/1.1 200 OK";
-    let contents = fs::read_to_string("response.html").unwrap();
+    
+    let mut http_request = Vec::new();
+    
+    for line_result in buf_reader.lines() {
+        match line_result {
+            Ok(line) => {
+                if line.is_empty() {
+                    break;
+                }
+                http_request.push(line);
+            }
+            Err(error) => {
+                println!("❌ Error reading line: {}", error);
+                return;
+            }
+        }
+    }
+    
+    println!("📨 Received {} headers", http_request.len());
+    if !http_request.is_empty() {
+        println!("📝 First line: {}", http_request[0]);
+    }
+    
+    let (status_line, contents) = match fs::read_to_string("response.html") {
+        Ok(content) => {
+            println!("📄 Found response.html ({} bytes)", content.len());
+            ("HTTP/1.1 200 OK", content)
+        }
+        Err(error) => {
+            println!("❌ Could not read response.html: {}", error);
+            ("HTTP/1.1 404 NOT FOUND", String::from("404 - File not found"))
+        }
+    };
+    
     let length = contents.len();
-    let reponse = 
-        format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
-    stream.write_all(reponse.as_bytes()).unwrap();
-
+    let response = format!(
+        "{}\r\nContent-Length: {}\r\n\r\n{}",
+        status_line, length, contents
+    );
+    
+    // Send the response
+    match stream.write_all(response.as_bytes()) {
+        Ok(_) => {
+            println!("✅ Response sent successfully!");
+        }
+        Err(error) => {
+            println!("❌ Failed to send response: {}", error);
+        }
+    }
+    
+    println!("--- Connection closed ---\n");
 }
