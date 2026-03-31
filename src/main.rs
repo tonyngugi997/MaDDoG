@@ -88,7 +88,7 @@ fn handle_connection(mut stream: TcpStream) {
     }
 
     // Response
-    let (status_line, contents) = match fs::read_to_string("response.html") {
+ /*   let (status_line, contents) = match fs::read_to_string("response.html") {
         Ok(content) => ("HTTP/1.1 200 OK", content),
         Err(_) => ("HTTP/1.1 404 NOT FOUND", String::from("404 - File not found")),
     };
@@ -100,5 +100,45 @@ fn handle_connection(mut stream: TcpStream) {
         contents
     );
 
+    let _ = stream.write_all(response.as_bytes());
+}*/
+
+    let response = match request.path.as_str() {
+        "/" => {
+            let content = fs::read_to_string("response.html")
+                .unwrap_or_else(|_| String::from("404 FILE NOT FOUND"));
+            format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
+                content.len(),
+                content
+            )
+        }
+
+        "/api/chat" => {
+            let content = String::from("{\"message\": \"Hello from the API!\"}");
+            format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                content.len(),
+                content
+            )
+            }
+        "/api/about" => {
+            let content = String::from("{\"info\": \"What about Rust?\"}");
+            format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                content.len(),
+                content
+            )
+        }
+
+        _ => {
+            let content = String::from("404 NOT FOUND");
+            format!(
+                "HTTP/1.1 404 NOT FOUND\r\nContent-Length: {}\r\n\r\n{}",
+                content.len(),
+                content
+            )
+        }
+    };
     let _ = stream.write_all(response.as_bytes());
 }
