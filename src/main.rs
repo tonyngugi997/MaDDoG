@@ -10,6 +10,7 @@ struct HttpRequest {
     path: String,
     version: String,
     headers: HashMap<String, String>,
+    body: String,
 }
 
 fn main() {
@@ -35,10 +36,10 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    let buf_reader = BufReader::new(&stream);
-    let mut lines = buf_reader.lines();
+    let mut buf_reader = BufReader::new(&stream);
 
     // Request line
+    let mut lines = buf_reader.by_ref().lines();
     let request_line = match lines.next() {
         Some(Ok(line)) => line,
         _ => {
@@ -48,61 +49,50 @@ fn handle_connection(mut stream: TcpStream) {
     };
 
     let mut parts = request_line.split_whitespace();
-
     let method = parts.next().unwrap_or("").to_string();
     let path = parts.next().unwrap_or("").to_string();
     let version = parts.next().unwrap_or("").to_string();
 
     // Headers
-    let mut headers = HashMap::new();
-
-    for line in lines {
+    let mut headers: HashMap<String, String> = HashMap::new();
+    for line in lines.by_ref() {
         let line = match line {
             Ok(l) => l,
             Err(_) => continue,
         };
-
         if line.is_empty() {
             break;
         }
-
         if let Some((key, value)) = line.split_once(":") {
-            headers.insert(
-                key.trim().to_string(),
-                value.trim().to_string(),
-            );
+            headers.insert(key.trim().to_string(), value.trim().to_string());
         }
     }
+
+    // Body (read after headers)
+    let mut body = String::new();
+    if let Some(length) = headers.get("Content-Length") {
+        if let Ok(len) = length.parse::<usize>() {
+            let mut buf = vec![0; len];
+            let _ = buf_reader.read_exact(&mut buf);
+            body = String::from_utf8_lossy(&buf).to_string();
+        }
+    }
+    println!("📦 Body: {}", body);
 
     let request = HttpRequest {
         method,
         path,
         version,
         headers,
+        body,
     };
 
     println!("📨 {} {} {}", request.method, request.path, request.version);
-
     for (key, value) in &request.headers {
         println!("🔑 {}: {}", key, value);
     }
 
-    // Response
- /*   let (status_line, contents) = match fs::read_to_string("response.html") {
-        Ok(content) => ("HTTP/1.1 200 OK", content),
-        Err(_) => ("HTTP/1.1 404 NOT FOUND", String::from("404 - File not found")),
-    };
-
-    let response = format!(
-        "{}\r\nContent-Length: {}\r\n\r\n{}",
-        status_line,
-        contents.len(),
-        contents
-    );
-
-    let _ = stream.write_all(response.as_bytes());
-}*/
-
+    // Response routing
     let response = match request.path.as_str() {
         "/" => {
             let content = fs::read_to_string("response.html")
@@ -113,7 +103,6 @@ fn handle_connection(mut stream: TcpStream) {
                 content
             )
         }
-
         "/api/chat" => {
             let content = String::from("{\"message\": \"Hello from the API!\"}");
             format!(
@@ -121,7 +110,7 @@ fn handle_connection(mut stream: TcpStream) {
                 content.len(),
                 content
             )
-            }
+        }
         "/api/about" => {
             let content = String::from("{\"info\": \"What about Rust?\"}");
             format!(
@@ -130,7 +119,6 @@ fn handle_connection(mut stream: TcpStream) {
                 content
             )
         }
-
         _ => {
             let content = String::from("404 NOT FOUND");
             format!(
@@ -140,5 +128,6 @@ fn handle_connection(mut stream: TcpStream) {
             )
         }
     };
+
     let _ = stream.write_all(response.as_bytes());
 }
