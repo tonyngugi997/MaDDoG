@@ -13,6 +13,32 @@ struct HttpRequest {
     body: String,
 }
 
+
+struct HttpResponse {
+    status_code: u16,
+    status_text: String,
+    headers: hasmap<String, String>,
+    body: String,
+}
+
+fn get_mime_type(path: &str) -> &str {
+    let extension = path
+        .rsplit_once('.')
+        .map(|(_, ext)| ext)
+        .unwrap_or("");
+
+    match extension {
+        "html" => "text/html",
+        "css" => "text/css",
+        "js" => "application/javascript",
+        "json" => "application/json",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        _ => "application/octet-stream",
+    }
+}
+
+
 fn main() {
     let listener = match TcpListener::bind("127.0.0.1:5000") {
         Ok(listener) => {
@@ -68,7 +94,6 @@ fn handle_connection(mut stream: TcpStream) {
         }
     }
 
-    // Body (read after headers)
     let mut body = String::new();
     if let Some(length) = headers.get("Content-Length") {
         if let Ok(len) = length.parse::<usize>() {
