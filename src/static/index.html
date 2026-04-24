@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust HTTP Server</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Rust HTTP Server</h1>
+        <p>Serving static files with <strong>MIME type detection</strong> and <strong>security hardening</strong>!</p>
+        
+        <div class="card">
+            <h2>📁 Static Files Working!</h2>
+            <p>This page is served from <code>static/index.html</code></p>
+            <p>CSS is served from <code>static/style.css</code> with correct Content-Type</p>
+        </div>
+        
+        <div class="card">
+            <h2>🔌 API Endpoints</h2>
+            <button onclick="callApi()">Call /api/chat (GET)</button>
+            <button onclick="callApiPost()">Call /api/chat (POST)</button>
+            <pre id="output">Click a button to see response...</pre>
+        </div>
+        
+        <div class="card">
+            <h2>✅ Features Implemented</h2>
+            <ul>
+                <li>✓ MIME type detection (CSS, JS, HTML, images)</li>
+                <li>✓ Type-safe HTTP status codes</li>
+                <li>✓ Structured HttpResponse struct</li>
+                <li>✓ Security: Path traversal protection</li>
+                <li>✓ Tuple pattern routing (method + path)</li>
+                <li>✓ Static file serving</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script src="/app.js"></script>
+</body>
+</html>

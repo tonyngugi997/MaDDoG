@@ -246,7 +246,7 @@ fn handle_connection(mut stream: TcpStream) {
     let mut parts = request_line.split_whitespace();
     let method = parts.next().unwrap_or("").to_string();
     let path = parts.next().unwrap_or("").to_string();
-    let version = parts.next().unwrap_or("").to_string();
+    let _version = parts.next().unwrap_or("").to_string();  // Fixed unused variable
 
     let mut headers: HashMap<String, String> = HashMap::new();
     for line in lines.by_ref() {
@@ -272,50 +272,64 @@ fn handle_connection(mut stream: TcpStream) {
     }
 
     let request = HttpRequest {
-        method,
-        path,
-        version,
+        method: method.clone(),
+        path: path.clone(),
+        version: String::new(),
         headers,
         body,
     };
 
     println!("📨 {} {}", request.method, request.path);
 
-    let response = match request.path.as_str() {
-        "/" => {
-            match fs::read_to_string("static/index.html") {
-                Ok(content) => HttpResponse::ok_html(content),
-                Err(_) => {
-                    let fallback = String::from(
-                        "<!DOCTYPE html>
-                        <html>
-                        <head><title>Rust Server</title></head>
-                        <body>
-                            <h1>🚀 Rust HTTP Server Running!</h1>
-                            <p>Create <code>static/index.html</code> to customize this page.</p>
-                            <hr>
-                            <h2>Test Endpoints:</h2>
-                            <ul>
-                                <li><a href=\"/api/chat\">GET /api/chat</a></li>
-                                <li><a href=\"/api/about\">GET /api/about</a></li>
-                            </ul>
-                        </body>
-                        </html>"
-                    );
-                    HttpResponse::ok_html(fallback)
+    let response = match (request.method.as_str(), path.as_str()) {
+        // Serve static files for GET requests 
+        ("GET", path) if !path.starts_with("/api") => {
+            let file_path = path.trim_start_matches('/');
+            if file_path.is_empty() {
+                // Root path - serve index.html
+                match fs::read_to_string("static/index.html") {
+                    Ok(content) => HttpResponse::ok_html(content),
+                    Err(_) => {
+                        let fallback = String::from(
+                            "<!DOCTYPE html>
+                            <html>
+                            <head><title>Rust Server</title></head>
+                            <body>
+                                <h1>🚀 Rust HTTP Server Running!</h1>
+                                <p>Create <code>static/index.html</code> to customize this page.</p>
+                            </body>
+                            </html>"
+                        );
+                        HttpResponse::ok_html(fallback)
+                    }
                 }
+            } else {
+                // Serve the requested static file
+                serve_static_file_secure(file_path)
             }
         }
-        "/api/chat" => {
+        
+        // API Routes
+        ("GET", "/api/chat") => {
             let content = String::from(r#"{"message": "Hello from the Chat API!"}"#);
             HttpResponse::json(content)
         }
-        "/api/about" => {
-            let content = String::from(r#"{"info": "Rust HTTP Server v2 with HTML support"}"#);
+        
+        ("GET", "/api/about") => {
+            let content = String::from(r#"{"info": "Rust HTTP Server with static file support"}"#);
             HttpResponse::json(content)
         }
+        
+        ("POST", "/api/chat") => {
+            let response_body = format!(
+                r#"{{"received": "{}", "status": "echo from POST"}}"#,
+                request.body
+            );
+            HttpResponse::json(response_body)
+        }
+        
         _ => {
-            let body = String::from("404 - Page not found");
+            let body = String::from("404 - Resource not found");
             HttpResponse::text(HttpStatus::NotFound, body)
         }
     };
