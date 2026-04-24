@@ -148,6 +148,56 @@ fn serve_static_file(path: &str) -> HttpResponse {
     }
 }
 
+fn read_static_file_secure(path: &str) -> Result<Vec<u8>, std::io::Error> {
+    let sanitized = path.trim_start_matches('/');
+    
+    // Block directory traversal attacks
+    if sanitized.contains("..") || sanitized.contains('~') {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Path traversal attempt detected"
+        ));
+    }
+    
+    // Reject absolute paths
+    if sanitized.starts_with('/') {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Absolute path not allowed"
+        ));
+    }
+    
+    let full_path = format!("static/{}", sanitized);
+    fs::read(&full_path)
+}
+
+fn serve_static_file_secure(path: &str) -> HttpResponse {
+    match read_static_file_secure(path) {
+        Ok(body) => {
+            let mime = get_mime_type(path);
+            
+            let mut headers = HashMap::new();
+            headers.insert("Content-Length".to_string(), body.len().to_string());
+            headers.insert("Content-Type".to_string(), mime.to_string());
+            
+            HttpResponse {
+                status: HttpStatus::Ok,
+                headers,
+                body,
+            }
+        }
+        Err(error) => {
+            // Check if it's a security violation
+            if error.kind() == std::io::ErrorKind::InvalidInput {
+                eprintln!("🚨 Security: {} - {}", path, error);
+                let body = String::from("403 - Forbidden: Invalid path");
+                return HttpResponse::text(HttpStatus::NotFound, body);
+            }
+            file_error_to_response(error)
+        }
+    }
+}
+
 fn main() {
     let listener = match TcpListener::bind("127.0.0.1:5000") {
         Ok(listener) => {
