@@ -105,6 +105,20 @@ impl HttpResponse {
         
         response
     }
+    
+    fn html(status: HttpStatus, body: String) -> Self {
+        let mut headers = HashMap::new();
+        let body_bytes = body.into_bytes();
+        
+        headers.insert("Content-Length".to_string(), body_bytes.len().to_string());
+        headers.insert("Content-Type".to_string(), "text/html".to_string());
+        
+        HttpResponse { status, headers, body: body_bytes }
+    }
+    
+    fn ok_html(body: String) -> Self {
+        HttpResponse::html(HttpStatus::Ok, body)
+    }
 }
 
 fn read_static_file(path: &str) -> Result<Vec<u8>, std::io::Error> {
@@ -151,7 +165,6 @@ fn serve_static_file(path: &str) -> HttpResponse {
 fn read_static_file_secure(path: &str) -> Result<Vec<u8>, std::io::Error> {
     let sanitized = path.trim_start_matches('/');
     
-    // Block directory traversal attacks
     if sanitized.contains("..") || sanitized.contains('~') {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
@@ -159,7 +172,6 @@ fn read_static_file_secure(path: &str) -> Result<Vec<u8>, std::io::Error> {
         ));
     }
     
-    // Reject absolute paths
     if sanitized.starts_with('/') {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
@@ -187,7 +199,6 @@ fn serve_static_file_secure(path: &str) -> HttpResponse {
             }
         }
         Err(error) => {
-            // Check if it's a security violation
             if error.kind() == std::io::ErrorKind::InvalidInput {
                 eprintln!("🚨 Security: {} - {}", path, error);
                 let body = String::from("403 - Forbidden: Invalid path");
@@ -272,39 +283,43 @@ fn handle_connection(mut stream: TcpStream) {
 
     let response = match request.path.as_str() {
         "/" => {
-            let content = fs::read_to_string("response.html")
-                .unwrap_or_else(|_| String::from("404 FILE NOT FOUND"));
-            format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
-                content.len(),
-                content
-            )
+            match fs::read_to_string("static/index.html") {
+                Ok(content) => HttpResponse::ok_html(content),
+                Err(_) => {
+                    let fallback = String::from(
+                        "<!DOCTYPE html>
+                        <html>
+                        <head><title>Rust Server</title></head>
+                        <body>
+                            <h1>🚀 Rust HTTP Server Running!</h1>
+                            <p>Create <code>static/index.html</code> to customize this page.</p>
+                            <hr>
+                            <h2>Test Endpoints:</h2>
+                            <ul>
+                                <li><a href=\"/api/chat\">GET /api/chat</a></li>
+                                <li><a href=\"/api/about\">GET /api/about</a></li>
+                            </ul>
+                        </body>
+                        </html>"
+                    );
+                    HttpResponse::ok_html(fallback)
+                }
+            }
         }
         "/api/chat" => {
-            let content = String::from("{\"message\": \"Hello from the API!\"}");
-            format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-                content.len(),
-                content
-            )
+            let content = String::from(r#"{"message": "Hello from the Chat API!"}"#);
+            HttpResponse::json(content)
         }
         "/api/about" => {
-            let content = String::from("{\"info\": \"What about Rust?\"}");
-            format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-                content.len(),
-                content
-            )
+            let content = String::from(r#"{"info": "Rust HTTP Server v2 with HTML support"}"#);
+            HttpResponse::json(content)
         }
         _ => {
-            let content = String::from("404 NOT FOUND");
-            format!(
-                "HTTP/1.1 404 NOT FOUND\r\nContent-Length: {}\r\n\r\n{}",
-                content.len(),
-                content
-            )
+            let body = String::from("404 - Page not found");
+            HttpResponse::text(HttpStatus::NotFound, body)
         }
     };
-
-    let _ = stream.write_all(response.as_bytes());
+    
+    let response_bytes = response.to_bytes();
+    let _ = stream.write_all(&response_bytes);
 }
