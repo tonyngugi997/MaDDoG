@@ -38,6 +38,36 @@ fn get_mime_type(path: &str) -> &str {
     }
 }
 
+#[derive(Debug)]
+enum HttpStatus {
+    Ok,
+    NotFound,
+    BadRequest,
+    InternalServerError,
+
+}
+
+
+impl HttpStatus {
+    fn code(&self) -> u16{
+        match self {
+            HttpStatus::Ok => 200,
+            HttpStatus::NotFound => 404,
+            HttpStatus::BadRequest => 400,
+            HttpStatus::InternalServerError => 500,
+        }
+    }
+
+    fn reason_phrase(&self) -> &'static str {
+        match self {
+            HttpStatus::Ok => 200,
+            HttpStatus::NotFound => 404,
+            HttpStatus::BadRequest => 400,
+            HttpStatus::InternalServerError => 500,
+        }
+    }
+}
+
 
 fn main() {
     let listener = match TcpListener::bind("127.0.0.1:5000") {
