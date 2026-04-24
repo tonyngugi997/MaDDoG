@@ -13,61 +13,101 @@ struct HttpRequest {
     body: String,
 }
 
-
-struct HttpResponse {
-    status_code: u16,
-    status_text: String,
-    headers: hasmap<String, String>,
-    body: String,
-}
-
-fn get_mime_type(path: &str) -> &str {
+fn get_mime_type(path: &str) -> &'static str {
     let extension = path
         .rsplit_once('.')
         .map(|(_, ext)| ext)
         .unwrap_or("");
-
+    
     match extension {
-        "html" => "text/html",
-        "css" => "text/css",
-        "js" => "application/javascript",
-        "json" => "application/json",
-        "png" => "image/png",
+        "html" | "htm" => "text/html",
+        "css"          => "text/css",
+        "js"           => "application/javascript",
+        "json"         => "application/json",
+        "png"          => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
-        _ => "application/octet-stream",
+        "gif"          => "image/gif",
+        "svg"          => "image/svg+xml",
+        "txt"          => "text/plain",
+        _              => "application/octet-stream",
     }
 }
 
+// Commit 2: HTTP status codes
 #[derive(Debug)]
 enum HttpStatus {
     Ok,
     NotFound,
-    BadRequest,
     InternalServerError,
-
 }
-
 
 impl HttpStatus {
-    fn code(&self) -> u16{
+    fn code(&self) -> u16 {
         match self {
             HttpStatus::Ok => 200,
             HttpStatus::NotFound => 404,
-            HttpStatus::BadRequest => 400,
             HttpStatus::InternalServerError => 500,
         }
     }
-
+    
     fn reason_phrase(&self) -> &'static str {
         match self {
-            HttpStatus::Ok => 200,
-            HttpStatus::NotFound => 404,
-            HttpStatus::BadRequest => 400,
-            HttpStatus::InternalServerError => 500,
+            HttpStatus::Ok => "OK",
+            HttpStatus::NotFound => "NOT FOUND",
+            HttpStatus::InternalServerError => "INTERNAL SERVER ERROR",
         }
     }
 }
 
+// Commit 3: Structured HTTP response
+struct HttpResponse {
+    status: HttpStatus,
+    headers: HashMap<String, String>,
+    body: Vec<u8>,
+}
+
+impl HttpResponse {
+    fn text(status: HttpStatus, body: String) -> Self {
+        let mut headers = HashMap::new();
+        let body_bytes = body.into_bytes();
+        
+        headers.insert("Content-Length".to_string(), body_bytes.len().to_string());
+        headers.insert("Content-Type".to_string(), "text/plain".to_string());
+        
+        HttpResponse { status, headers, body: body_bytes }
+    }
+    
+    fn json(body: String) -> Self {
+        let mut headers = HashMap::new();
+        let body_bytes = body.into_bytes();
+        
+        headers.insert("Content-Length".to_string(), body_bytes.len().to_string());
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+        
+        HttpResponse { status: HttpStatus::Ok, headers, body: body_bytes }
+    }
+    
+    fn to_bytes(&self) -> Vec<u8> {
+        let status_line = format!(
+            "HTTP/1.1 {} {}\r\n",
+            self.status.code(),
+            self.status.reason_phrase()
+        );
+        
+        let headers_string: String = self.headers
+            .iter()
+            .map(|(k, v)| format!("{}: {}\r\n", k, v))
+            .collect();
+        
+        let mut response = Vec::new();
+        response.extend_from_slice(status_line.as_bytes());
+        response.extend_from_slice(headers_string.as_bytes());
+        response.extend_from_slice(b"\r\n");
+        response.extend_from_slice(&self.body);
+        
+        response
+    }
+}
 
 fn main() {
     let listener = match TcpListener::bind("127.0.0.1:5000") {
@@ -94,7 +134,6 @@ fn main() {
 fn handle_connection(mut stream: TcpStream) {
     let mut buf_reader = BufReader::new(&stream);
 
-    // Request line
     let mut lines = buf_reader.by_ref().lines();
     let request_line = match lines.next() {
         Some(Ok(line)) => line,
@@ -109,7 +148,6 @@ fn handle_connection(mut stream: TcpStream) {
     let path = parts.next().unwrap_or("").to_string();
     let version = parts.next().unwrap_or("").to_string();
 
-    // Headers
     let mut headers: HashMap<String, String> = HashMap::new();
     for line in lines.by_ref() {
         let line = match line {
@@ -132,7 +170,6 @@ fn handle_connection(mut stream: TcpStream) {
             body = String::from_utf8_lossy(&buf).to_string();
         }
     }
-    println!("📦 Body: {}", body);
 
     let request = HttpRequest {
         method,
@@ -142,12 +179,8 @@ fn handle_connection(mut stream: TcpStream) {
         body,
     };
 
-    println!("📨 {} {} {}", request.method, request.path, request.version);
-    for (key, value) in &request.headers {
-        println!("🔑 {}: {}", key, value);
-    }
+    println!("📨 {} {}", request.method, request.path);
 
-    // Response routing
     let response = match request.path.as_str() {
         "/" => {
             let content = fs::read_to_string("response.html")
