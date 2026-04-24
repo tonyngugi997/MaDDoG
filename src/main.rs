@@ -33,7 +33,6 @@ fn get_mime_type(path: &str) -> &'static str {
     }
 }
 
-// Commit 2: HTTP status codes
 #[derive(Debug)]
 enum HttpStatus {
     Ok,
@@ -59,7 +58,6 @@ impl HttpStatus {
     }
 }
 
-// Commit 3: Structured HTTP response
 struct HttpResponse {
     status: HttpStatus,
     headers: HashMap<String, String>,
@@ -106,6 +104,47 @@ impl HttpResponse {
         response.extend_from_slice(&self.body);
         
         response
+    }
+}
+
+fn read_static_file(path: &str) -> Result<Vec<u8>, std::io::Error> {
+    let safe_path = path.trim_start_matches('/');
+    let full_path = format!("static/{}", safe_path);
+    fs::read(&full_path)
+}
+
+fn file_error_to_response(error: std::io::Error) -> HttpResponse {
+    use std::io::ErrorKind;
+    
+    match error.kind() {
+        ErrorKind::NotFound => {
+            let body = String::from("404 - File not found");
+            HttpResponse::text(HttpStatus::NotFound, body)
+        }
+        _other_error => {
+            eprintln!("⚠️ Server error reading file: {}", _other_error);
+            let body = String::from("500 - Internal server error");
+            HttpResponse::text(HttpStatus::InternalServerError, body)
+        }
+    }
+}
+
+fn serve_static_file(path: &str) -> HttpResponse {
+    match read_static_file(path) {
+        Ok(body) => {
+            let mime = get_mime_type(path);
+            
+            let mut headers = HashMap::new();
+            headers.insert("Content-Length".to_string(), body.len().to_string());
+            headers.insert("Content-Type".to_string(), mime.to_string());
+            
+            HttpResponse {
+                status: HttpStatus::Ok,
+                headers,
+                body,
+            }
+        }
+        Err(error) => file_error_to_response(error),
     }
 }
 
